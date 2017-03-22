@@ -9,7 +9,7 @@ doit <- function() {
   )
   
   server <- function(input, output, session) {
-    mydata <- dataimportServer("vv", fileExt = fileExt)
+    mydata <- dataimportServer("vv", fileExt)
     
     output$table <- DT::renderDataTable({
       mydata()
@@ -23,32 +23,40 @@ doit <- function() {
 
 SUPPORTED_FILES <- c("csv", "txt", "xlsx", "ods")
 
-#' @export
-#' @import shiny
-dataimportUI <- function(id, label = "Choose a file",
-                   fileExt = c("csv", "txt", "xlsx", "ods")) {
-
+check_file_formats <- function(fileExt) {
   if (!all(fileExt %in% SUPPORTED_FILES) ) {
-    stop("Unsupported file formats. Supported formats: ",
+    stop("Unsupported file formats. Supported formats are: ",
          paste(SUPPORTED_FILES, collapse = ", "),
          call. = FALSE)
   }
+}
+
+#' Data import module UI
+#' @export
+#' @import shiny
+dataimportUI <- function(id = "dataimport",
+                         fileExt = c("csv", "txt", "xlsx", "ods"),
+                         label = "Choose a file") {
+
+  check_file_formats(fileExt)
   
   ns <- NS(id)
   
-  tagList(
+  div(
     shinyjs::useShinyjs(),
+    shinyjs::inlineCSS(".dataimport-module h3 { font-weight: bold; }
+                        .dataimport-module .upload-err { color: red; }"),
+    class = "dataimport-module",
     fileInput(ns("upload_file"), label, multiple = FALSE,
               accept = paste0(".", fileExt)),
     shinyjs::hidden(
-      selectInput(ns("upload_type"), "File type", selected = "",
-                  c("", fileExt))
+      selectInput(ns("upload_type"), "File type", selected = "", c("", fileExt))
     ),
 
     conditionalPanel(
       paste0("input['", ns("upload_type"),"']  == 'csv'"),
       div(
-          div(h1("Import CSV Options")),
+          div(h3("Import CSV Options")),
           checkboxInput(ns("upload_options_csv_header"),
                         "First row is column names", TRUE),
           selectInput(ns("upload_options_csv_sep"),
@@ -64,7 +72,7 @@ dataimportUI <- function(id, label = "Choose a file",
     conditionalPanel(
       paste0("input['", ns("upload_type"),"'] == 'txt'"),
       div(
-          div(h1("Import Text Options")),
+          div(h3("Import Text Options")),
           checkboxInput(ns("upload_options_txt_header"),
                         "First row is column names", TRUE),
           selectInput(ns("upload_options_txt_sep"),
@@ -80,7 +88,7 @@ dataimportUI <- function(id, label = "Choose a file",
     conditionalPanel(
       paste0("input['", ns("upload_type"),"'] == 'xlsx'"),
       div(
-          div(h1("Import Excel Options")),
+          div(h3("Import Excel Options")),
           checkboxInput(ns("upload_options_xlsx_col_names"),
                         "First row is column names", TRUE),
           numericInput(ns("upload_options_xlsx_sheet"), "Sheet to read",
@@ -91,7 +99,7 @@ dataimportUI <- function(id, label = "Choose a file",
     conditionalPanel(
       paste0("input['", ns("upload_type"),"'] == 'ods'"),
       div(
-        div(h1("Import ODS Options")),
+        div(h3("Import ODS Options")),
         checkboxInput(ns("upload_options_ods_col_names"),
                       "First row is column names", TRUE),
         numericInput(ns("upload_options_ods_sheet"), "Sheet to read",
@@ -105,7 +113,7 @@ dataimportUI <- function(id, label = "Choose a file",
     ),
     shinyjs::hidden(
       div(id = ns("upload_err"),
-          style = "color: red;",
+          class = "upload-err",
           icon("exclamation-circle"),
           tags$b("Error:"),
           textOutput(ns("upload_err_msg"), inline = TRUE)
@@ -118,12 +126,8 @@ dataimportUI <- function(id, label = "Choose a file",
 #' @import shiny
 dataimportServer <- function(id,
                              fileExt = c("csv", "txt", "xlsx", "ods")) {
-  if (!all(fileExt %in% SUPPORTED_FILES) ) {
-    stop("Unsupported file formats. Supported formats: ",
-         paste(SUPPORTED_FILES, collapse = ", "),
-         call. = FALSE)
-  }
-  return(callModule(dataimportServerHelper, id, fileExt = fileExt))
+  check_file_formats(fileExt)
+  callModule(dataimportServerHelper, id, fileExt = fileExt)
 }
 
 dataimportServerHelper <- function(input, output, session, id, fileExt) {
@@ -138,8 +142,13 @@ dataimportServerHelper <- function(input, output, session, id, fileExt) {
 
   values <- reactiveValues(
     data = NULL,
+    show_submit = FALSE,
     error = NULL
   )
+  
+  observe({
+    shinyjs::toggle("upload_import_btn", condition = values$show_submit)
+  })
   
   observe({
     shinyjs::toggle("upload_err", condition = !is.null(values$error))
@@ -163,23 +172,18 @@ dataimportServerHelper <- function(input, output, session, id, fileExt) {
     file <- upload_file_path()
     file_ext <- tools::file_ext(file)
     
+    # If the uploaded file is not an acceptable file type
     if (!file_ext %in% fileExt) {
-      shinyjs::hide("upload_import_btn")
+      values$show_submit <- FALSE
       values$error <- "Unsupported file format"
       updateSelectInput(session, "upload_type", selected = "")
       return()
     }
     
-    shinyjs::show("upload_import_btn")
+    values$show_submit <- TRUE
     values$error <- NULL
-
-    if (file_ext %in% SUPPORTED_FILES) {
-      shinyjs::hide("upload_type")
-      updateSelectInput(session, "upload_type", selected = file_ext)  
-    } else {
-      shinyjs::show("upload_type")
-      updateSelectInput(session, "upload_type", selected = "")
-    }
+    shinyjs::hide("upload_type")
+    updateSelectInput(session, "upload_type", selected = file_ext)
   })
 
   # do.call() can't handle a namespaced function, so split it up  
@@ -192,6 +196,7 @@ dataimportServerHelper <- function(input, output, session, id, fileExt) {
     }
   }
   
+  # The user clicks on the upload file button
   observeEvent(input$upload_import_btn, {
     values$error <- NULL
     shinyjs::disable("upload_import_btn")
