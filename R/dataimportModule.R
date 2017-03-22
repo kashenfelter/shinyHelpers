@@ -21,14 +21,13 @@ doit <- function() {
 
 
 
-
+SUPPORTED_FILES <- c("csv", "txt", "xlsx", "rds", "ods")
 
 #' @export
 #' @import shiny
 dataimportUI <- function(id, label = "Choose a file",
                    fileExt = c("csv", "txt", "xlsx", "rds", "ods")) {
 
-  SUPPORTED_FILES <- c("csv", "txt", "xlsx", "rds", "ods")
   if (!all(fileExt %in% SUPPORTED_FILES) ) {
     stop("Unsupported file formats. Supported formats: ",
          paste(SUPPORTED_FILES, collapse = ", "),
@@ -107,7 +106,6 @@ dataimportUI <- function(id, label = "Choose a file",
 #' @import shiny
 dataimportServer <- function(id,
                              fileExt = c("csv", "txt", "xlsx", "rds", "ods")) {
-  SUPPORTED_FILES <- c("csv", "txt", "xlsx", "rds", "ods")
   if (!all(fileExt %in% SUPPORTED_FILES) ) {
     stop("Unsupported file formats. Supported formats: ",
          paste(SUPPORTED_FILES, collapse = ", "),
