@@ -1,6 +1,6 @@
 #' @export
 doit <- function() {
-  fileExt = c("csv", "txt", "xlsx")
+  fileExt = c("csv", "txt", "xlsx", "ods")
   
   ui <- fluidPage(
     dataimportUI("vv", fileExt = fileExt),
@@ -21,12 +21,12 @@ doit <- function() {
 
 
 
-SUPPORTED_FILES <- c("csv", "txt", "xlsx", "rds", "ods")
+SUPPORTED_FILES <- c("csv", "txt", "xlsx", "ods")
 
 #' @export
 #' @import shiny
 dataimportUI <- function(id, label = "Choose a file",
-                   fileExt = c("csv", "txt", "xlsx", "rds", "ods")) {
+                   fileExt = c("csv", "txt", "xlsx", "ods")) {
 
   if (!all(fileExt %in% SUPPORTED_FILES) ) {
     stop("Unsupported file formats. Supported formats: ",
@@ -87,6 +87,18 @@ dataimportUI <- function(id, label = "Choose a file",
                        min = 1, value = 1)
       )
     ),
+    
+    conditionalPanel(
+      paste0("input['", ns("upload_type"),"'] == 'ods'"),
+      div(
+        div(h1("Import ODS Options")),
+        checkboxInput(ns("upload_options_ods_col_names"),
+                      "First row is column names", TRUE),
+        numericInput(ns("upload_options_ods_sheet"), "Sheet to read",
+                     min = 1, value = 1)
+      )
+    ),
+    
     shinyjs::hidden(
       actionButton(ns("upload_import_btn"), "Import Data",
                    class = "btn-primary")
@@ -105,7 +117,7 @@ dataimportUI <- function(id, label = "Choose a file",
 #' @export
 #' @import shiny
 dataimportServer <- function(id,
-                             fileExt = c("csv", "txt", "xlsx", "rds", "ods")) {
+                             fileExt = c("csv", "txt", "xlsx", "ods")) {
   if (!all(fileExt %in% SUPPORTED_FILES) ) {
     stop("Unsupported file formats. Supported formats: ",
          paste(SUPPORTED_FILES, collapse = ", "),
@@ -118,10 +130,10 @@ dataimportServerHelper <- function(input, output, session, id, fileExt) {
 
   # map between a file extension to the function that can be used to import it
   FILETYPE_READ_FXN <- c(
-    "csv" = "utils::read.csv",
-    "rds" = "base::readRDS",
-    "txt" = "utils::read.delim",
-    "xlsx" = "readxl::read_excel"
+    "csv"  = "utils::read.csv",
+    "txt"  = "utils::read.delim",
+    "xlsx" = "readxl::read_excel",
+    "ods"  = "readODS::read_ods"
   )
 
   values <- reactiveValues(
@@ -131,8 +143,6 @@ dataimportServerHelper <- function(input, output, session, id, fileExt) {
   
   observe({
     shinyjs::toggle("upload_err", condition = !is.null(values$error))
-    shinyjs::toggle("upload_import_btn",
-                    condition = is.null(values$error) && input$upload_type != "")
   })
   
   output$upload_err_msg <- renderText({
@@ -154,11 +164,13 @@ dataimportServerHelper <- function(input, output, session, id, fileExt) {
     file_ext <- tools::file_ext(file)
     
     if (!file_ext %in% fileExt) {
+      shinyjs::hide("upload_import_btn")
       values$error <- "Unsupported file format"
       updateSelectInput(session, "upload_type", selected = "")
       return()
     }
     
+    shinyjs::show("upload_import_btn")
     values$error <- NULL
 
     if (file_ext %in% SUPPORTED_FILES) {
@@ -181,29 +193,39 @@ dataimportServerHelper <- function(input, output, session, id, fileExt) {
   }
   
   observeEvent(input$upload_import_btn, {
-    # Figure out what function to call
-    file <- upload_file_path()
-    file_ext <- input$upload_type
-    read_fxn <- FILETYPE_READ_FXN[file_ext]
-    fxn <- get_read_fxn(read_fxn)
-
-    # Gather all the parameters of the read function
-    params_regex <- paste0("^upload_options_", file_ext, "_(.*)$")
-    params_inputs <- grep(params_regex, names(input), value = TRUE)
-    read_params <- list(file)
-    lapply(params_inputs, function(x) {
-      param <- gsub(params_regex, "\\1", x)
-      value <- input[[x]]
-
-      if (param == "quote") {
-        if (value == "None") {
-          value <- ""
-        }
-      }
-      read_params[[param]] <<- value
+    values$error <- NULL
+    shinyjs::disable("upload_import_btn")
+    on.exit({
+      shinyjs::enable("upload_import_btn")
     })
     
-    values$data <- do.call(fxn, read_params)
+    tryCatch({
+      # Figure out what function to call
+      file <- upload_file_path()
+      file_ext <- input$upload_type
+      read_fxn <- FILETYPE_READ_FXN[file_ext]
+      fxn <- get_read_fxn(read_fxn)
+  
+      # Gather all the parameters of the read function
+      params_regex <- paste0("^upload_options_", file_ext, "_(.*)$")
+      params_inputs <- grep(params_regex, names(input), value = TRUE)
+      read_params <- list(file)
+      lapply(params_inputs, function(x) {
+        param <- gsub(params_regex, "\\1", x)
+        value <- input[[x]]
+  
+        if (param == "quote") {
+          if (value == "None") {
+            value <- ""
+          }
+        }
+        read_params[[param]] <<- value
+      })
+  
+      values$data <- do.call(fxn, read_params)
+    }, error = function(err) {
+      values$error <- err$message
+    })
   })
   
   return(reactive(values$data))
