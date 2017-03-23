@@ -3,4 +3,7 @@
 export(dataimportServer)
 export(dataimportUI)
 export(doit)
+export(dome)
+export(mapcolumnsServer)
+export(mapcolumnsUI)
 import(shiny)

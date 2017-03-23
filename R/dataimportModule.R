@@ -1,14 +1,14 @@
 # TODO:
-# - data module - have option to use default params for the file types so that you don't let the user choose parameters
 # - change naming to underscore
+# - think of a way to make the user not have to duplicate the UI and server code
 
 #' @export
 doit <- function() {
   fileExt = c("csv", "txt", "xlsx", "ods")
-  require(outbreaks)
-  expl_data <- list("Ebola" = ebola_sim$linelist, 
-                 "MERS" = mers_korea_2015$linelist,
-                 "SARS Canada 2003" = sars_canada_2003)
+  
+  expl_data <- list("Ebola" = outbreaks::ebola_sim$linelist, 
+                 "MERS" = outbreaks::mers_korea_2015$linelist,
+                 "SARS Canada 2003" = outbreaks::sars_canada_2003)
   
   ui <- fluidPage(
     dataimportUI("vv", fileExt = fileExt, sampleDataPackage = "outbreaks",
