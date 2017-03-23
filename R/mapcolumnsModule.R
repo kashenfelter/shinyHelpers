@@ -3,17 +3,30 @@
 #' @export
 dome <- function() {
   ui <- fluidPage(
-    mapcolumnsUI(data = iris,
-                 names = c("dates", "name"),
-                 multiple = c(T, F),
-                 labels = c("Please provide the dates of onset",
-                            "Which column corresponds to the name?")
-                 )
+    selectInput("dataset", "Select dataset", c("iris", "mtcars")),
+    uiOutput("mapcolumns")
   )
   
   server <- function(input, output, session) {
+    mydata <- reactive({
+      if (input$dataset == "iris") {
+        iris
+      } else {
+        mtcars
+      }
+    })
+    
+    output$mapcolumns <- renderUI({
+      mapcolumnsUI(data = mydata(),
+                   names = c("dates", "name"),
+                   multiple = c(T, F),
+                   labels = c("Please provide the dates of onset",
+                              "Which column corresponds to the name?")
+      )
+    })
+    
     mynames <- mapcolumnsServer(
-      data = iris,
+      data = mydata(),
       names = c("dates", "name"),
       multiple = c(T, F))
     

@@ -3,6 +3,17 @@
 # - think of a way to make the user not have to duplicate the UI and server code
 
 #' @export
+dataimportModule <- function(id = "dataimport",
+                             fileExt = c("csv", "txt", "xlsx", "ods"),
+                             sampleDataPackage = NULL,
+                             sampleDatasets = NULL) {
+  list(
+    ui = function() dataimportUI(id, fileExt, sampleDataPackage, sampleDatasets),
+    server = function() dataimportServer(id, fileExt, sampleDataPackage, sampleDatasets)
+  )
+}
+
+#' @export
 doit <- function() {
   fileExt = c("csv", "txt", "xlsx", "ods")
   
@@ -10,17 +21,19 @@ doit <- function() {
                  "MERS" = outbreaks::mers_korea_2015$linelist,
                  "SARS Canada 2003" = outbreaks::sars_canada_2003)
   
+  dataimport <- dataimportModule(
+    "vv", fileExt = fileExt, sampleDataPackage = "outbreaks",
+    sampleDatasets = expl_data
+  )
+  
   ui <- fluidPage(
-    dataimportUI("vv", fileExt = fileExt, sampleDataPackage = "outbreaks",
-                 sampleDatasets = expl_data),
+    dataimport$ui(),
     br(),
     DT::dataTableOutput("table")
   )
   
   server <- function(input, output, session) {
-    mydata <- dataimportServer("vv", fileExt, sampleDataPackage = "outbreaks",
-                               sampleDatasets = expl_data)
-    
+    mydata <- dataimport$server()
     output$table <- DT::renderDataTable({
       mydata()
     })
