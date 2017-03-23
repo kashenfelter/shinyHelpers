@@ -1,19 +1,25 @@
 # TODO: data module - have option to use default params for the file types so that you don't let the user choose parameters
-# provide a way to select existing datasets
-# UX feedback
+# add parameter for stringsAsFactors
+# change naming to underscore
 
 #' @export
 doit <- function() {
   fileExt = c("csv", "txt", "xlsx", "ods")
+  require(outbreaks)
+  expl_data <- list("Ebola" = ebola_sim$linelist, 
+                 "MERS" = mers_korea_2015$linelist,
+                 "SARS Canada 2003" = sars_canada_2003)
   
   ui <- fluidPage(
-    dataimportUI("vv", fileExt = fileExt),
+    dataimportUI("vv", fileExt = fileExt, sampleDataPackage = "outbreaks",
+                 sampleDatasets = expl_data),
     br(),
     DT::dataTableOutput("table")
   )
   
   server <- function(input, output, session) {
-    mydata <- dataimportServer("vv", fileExt)
+    mydata <- dataimportServer("vv", fileExt, sampleDataPackage = "outbreaks",
+                               sampleDatasets = expl_data)
     
     output$table <- DT::renderDataTable({
       mydata()
@@ -59,9 +65,28 @@ dataimportCSS <- "
 #' @import shiny
 dataimportUI <- function(id = "dataimport",
                          fileExt = c("csv", "txt", "xlsx", "ods"),
-                         label = "Choose a file") {
+                         sampleDataPackage = NULL,
+                         sampleDatasets = NULL) {
 
   check_file_formats(fileExt)
+
+  # Provide a list of sample datasets (either from a data package or from a
+  # user-provided list of datasets, or both)  
+  sample_datasets <- NULL
+  if (!is.null(sampleDataPackage)) {
+    if (!requireNamespace(sampleDataPackage, quietly = TRUE)) {
+      stop(sprintf("`%s` package is not available, please install it", sampleDataPackage))
+    }
+    sample_datasets <- data(package = sampleDataPackage)$results
+    sample_datasets <- setNames(sample_datasets[, 'Item'],
+                                sample_datasets[, 'Title'])
+  }
+  if (!is.null(sampleDatasets)) {
+    if (!is.null(sample_datasets)) {
+      warning("sampleDatasets is overriding sampleDataPackage, you should not provide both parameters")
+    }
+    sample_datasets <- names(sampleDatasets)
+  }
   
   ns <- NS(id)
   
@@ -69,80 +94,103 @@ dataimportUI <- function(id = "dataimport",
     shinyjs::useShinyjs(),
     shinyjs::inlineCSS(dataimportCSS),
     class = "dataimport-module",
-    fileInput(ns("upload_file"), label, multiple = FALSE,
-              accept = paste0(".", fileExt)),
-    shinyjs::hidden(
-      selectInput(ns("upload_type"), "File type", selected = "", c("", fileExt))
-    ),
-
-    conditionalPanel(
-      paste0("input['", ns("upload_type"),"']  == 'csv'"),
-      div(
-          div(h3("Import CSV Options")),
-          checkboxInput(ns("upload_options_csv_header"),
-                        "First row is column names", TRUE),
-          selectInput(ns("upload_options_csv_sep"),
-                      "Delimeter",
-                      c("Comma" = ",", "Tab" = "\t", "Whitespace" = " ")),
-          selectInput(ns("upload_options_csv_quote"),
-                      "Quotes around strings",
-                      c("Double (\")" = "\"", "Single (')" = "'",
-                        "None"))
-      )
+    h3("Import a dataset"),
+    div(
+      style = if(is.null(sample_datasets)) "display:none;",
+      selectInput(ns("upload_vs_sample"), NULL, choices = 
+                  c("Upload my own file" = "upload",
+                    "Use a sample dataset" = "sample"))
     ),
     
     conditionalPanel(
-      paste0("input['", ns("upload_type"),"'] == 'txt'"),
-      div(
-          div(h3("Import Text Options")),
-          checkboxInput(ns("upload_options_txt_header"),
-                        "First row is column names", TRUE),
-          selectInput(ns("upload_options_txt_sep"),
-                      "Delimeter",
-                      c("Comma" = ",", "Tab" = "\t", "Whitespace" = " ")),
-          selectInput(ns("upload_options_txt_quote"),
-                      "Quotes around strings",
-                      c("Double (\")" = "\"", "Single (')" = "'",
-                        "None"))
-      )
-    ),
-    
-    conditionalPanel(
-      paste0("input['", ns("upload_type"),"'] == 'xlsx'"),
-      div(
-          div(h3("Import Excel Options")),
-          checkboxInput(ns("upload_options_xlsx_col_names"),
-                        "First row is column names", TRUE),
-          numericInput(ns("upload_options_xlsx_sheet"), "Sheet to read",
-                       min = 1, value = 1)
-      )
-    ),
-    
-    conditionalPanel(
-      paste0("input['", ns("upload_type"),"'] == 'ods'"),
-      div(
-        div(h3("Import ODS Options")),
-        checkboxInput(ns("upload_options_ods_col_names"),
-                      "First row is column names", TRUE),
-        numericInput(ns("upload_options_ods_sheet"), "Sheet to read",
-                     min = 1, value = 1)
-      )
-    ),
-    
-    shinyjs::hidden(
-      actionButton(ns("upload_import_btn"), "Import Data",
+      paste0("input['", ns("upload_vs_sample"), "'] == 'sample'"),
+      selectInput(ns("upload_sample_data"), "Choose a dataset", sample_datasets),
+      actionButton(ns("upload_sample_btn"), "Import Data",
                    class = "btn-primary"),
-      span(id = ns("upload_import_loader"),
-           icon("spinner", class = "fa-spin btn-loading-img")),
-      span(id = ns("upload_import_check"),
-           icon("check", class = "btn-done-img"))
+      shinyjs::hidden(
+        span(id = ns("upload_sample_loader"),
+             icon("spinner", class = "fa-spin btn-loading-img")),
+        span(id = ns("upload_sample_check"),
+             icon("check", class = "btn-done-img"))
+      )
     ),
-    shinyjs::hidden(
-      div(id = ns("upload_err"),
-          class = "upload-err",
-          icon("exclamation-circle"),
-          tags$b("Error:"),
-          textOutput(ns("upload_err_msg"), inline = TRUE)
+    
+    conditionalPanel(
+      paste0("input['", ns("upload_vs_sample"), "'] == 'upload'"),
+      fileInput(ns("upload_file"), NULL, multiple = FALSE,
+              accept = paste0(".", fileExt)),
+      shinyjs::hidden(
+        selectInput(ns("upload_type"), "File type", selected = "", c("", fileExt))
+      ),
+  
+      conditionalPanel(
+        paste0("input['", ns("upload_type"),"'] == 'csv'"),
+        div(
+            div(h3("Import CSV Options")),
+            checkboxInput(ns("upload_options_csv_header"),
+                          "First row is column names", TRUE),
+            selectInput(ns("upload_options_csv_sep"),
+                        "Delimeter",
+                        c("Comma" = ",", "Tab" = "\t", "Whitespace" = " ")),
+            selectInput(ns("upload_options_csv_quote"),
+                        "Quotes around strings",
+                        c("Double (\")" = "\"", "Single (')" = "'",
+                          "None"))
+        )
+      ),
+      
+      conditionalPanel(
+        paste0("input['", ns("upload_type"),"'] == 'txt'"),
+        div(
+            div(h3("Import Text Options")),
+            checkboxInput(ns("upload_options_txt_header"),
+                          "First row is column names", TRUE),
+            selectInput(ns("upload_options_txt_sep"),
+                        "Delimeter",
+                        c("Comma" = ",", "Tab" = "\t", "Whitespace" = " ")),
+            selectInput(ns("upload_options_txt_quote"),
+                        "Quotes around strings",
+                        c("Double (\")" = "\"", "Single (')" = "'",
+                          "None"))
+        )
+      ),
+      
+      conditionalPanel(
+        paste0("input['", ns("upload_type"),"'] == 'xlsx'"),
+        div(
+            div(h3("Import Excel Options")),
+            checkboxInput(ns("upload_options_xlsx_col_names"),
+                          "First row is column names", TRUE),
+            numericInput(ns("upload_options_xlsx_sheet"), "Sheet to read",
+                         min = 1, value = 1)
+        )
+      ),
+      
+      conditionalPanel(
+        paste0("input['", ns("upload_type"),"'] == 'ods'"),
+        div(
+          div(h3("Import ODS Options")),
+          checkboxInput(ns("upload_options_ods_col_names"),
+                        "First row is column names", TRUE),
+          numericInput(ns("upload_options_ods_sheet"), "Sheet to read",
+                       min = 1, value = 1)
+        )
+      ),
+      shinyjs::hidden(
+        actionButton(ns("upload_import_btn"), "Import Data",
+                     class = "btn-primary"),
+        span(id = ns("upload_import_loader"),
+             icon("spinner", class = "fa-spin btn-loading-img")),
+        span(id = ns("upload_import_check"),
+             icon("check", class = "btn-done-img"))
+      ),
+      shinyjs::hidden(
+        div(id = ns("upload_err"),
+            class = "upload-err",
+            icon("exclamation-circle"),
+            tags$b("Error:"),
+            textOutput(ns("upload_err_msg"), inline = TRUE)
+        )
       )
     )
   )
@@ -151,12 +199,18 @@ dataimportUI <- function(id = "dataimport",
 #' @export
 #' @import shiny
 dataimportServer <- function(id,
-                             fileExt = c("csv", "txt", "xlsx", "ods")) {
+                             fileExt = c("csv", "txt", "xlsx", "ods"),
+                             sampleDataPackage = NULL,
+                             sampleDatasets = NULL) {
   check_file_formats(fileExt)
-  callModule(dataimportServerHelper, id, fileExt = fileExt)
+  callModule(dataimportServerHelper, id, fileExt = fileExt,
+             sampleDataPackage = sampleDataPackage,
+             sampleDatasets = sampleDatasets)
 }
 
-dataimportServerHelper <- function(input, output, session, id, fileExt) {
+dataimportServerHelper <- function(input, output, session, id, fileExt,
+                                   sampleDataPackage,
+                                   sampleDatasets) {
 
   # map between a file extension to the function that can be used to import it
   FILETYPE_READ_FXN <- c(
@@ -265,6 +319,29 @@ dataimportServerHelper <- function(input, output, session, id, fileExt) {
     }, error = function(err) {
       values$error <- err$message
     })
+  })
+  
+  # The user clicks on the upload sample dataset button
+  observeEvent(input$upload_sample_btn, {
+    shinyjs::disable("upload_sample_btn")
+    shinyjs::show("upload_sample_loader")
+    shinyjs::hide("upload_sample_check")
+    on.exit({
+      shinyjs::enable("upload_sample_btn")
+      shinyjs::hide("upload_sample_loader")
+    })
+    
+    if (!is.null(sampleDatasets)) {
+      values$data <- sampleDatasets[[input$upload_sample_data]]
+    } else {
+      data(list = input$upload_sample_data, package = sampleDataPackage)
+      values$data <- get(input$upload_sample_data)
+    }
+
+    shinyjs::show("upload_sample_check")
+    shinyjs::delay(2000,
+                   shinyjs::hide("upload_sample_check", anim = TRUE,
+                                 animType = "fade", time = 0.5))
   })
   
   return(reactive(values$data))
