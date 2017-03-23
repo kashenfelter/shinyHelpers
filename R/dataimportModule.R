@@ -1,3 +1,7 @@
+# TODO: data module - have option to use default params for the file types so that you don't let the user choose parameters
+# provide a way to select existing datasets
+# UX feedback
+
 #' @export
 doit <- function() {
   fileExt = c("csv", "txt", "xlsx", "ods")
@@ -31,6 +35,25 @@ check_file_formats <- function(fileExt) {
   }
 }
 
+dataimportCSS <- "
+.dataimport-module h3 {
+  font-weight: bold;
+}
+.dataimport-module .upload-err {
+  margin-top: 10px;
+  color: red;
+}
+.dataimport-module .btn-loading-img,
+.dataimport-module .btn-done-img {
+  margin-left: 10px;
+  font-size: 1.2em;
+  vertical-align: middle;
+}
+.dataimport-module .btn-done-img {
+  color: green;
+}
+"
+
 #' Data import module UI
 #' @export
 #' @import shiny
@@ -44,8 +67,7 @@ dataimportUI <- function(id = "dataimport",
   
   div(
     shinyjs::useShinyjs(),
-    shinyjs::inlineCSS(".dataimport-module h3 { font-weight: bold; }
-                        .dataimport-module .upload-err { color: red; }"),
+    shinyjs::inlineCSS(dataimportCSS),
     class = "dataimport-module",
     fileInput(ns("upload_file"), label, multiple = FALSE,
               accept = paste0(".", fileExt)),
@@ -109,7 +131,11 @@ dataimportUI <- function(id = "dataimport",
     
     shinyjs::hidden(
       actionButton(ns("upload_import_btn"), "Import Data",
-                   class = "btn-primary")
+                   class = "btn-primary"),
+      span(id = ns("upload_import_loader"),
+           icon("spinner", class = "fa-spin btn-loading-img")),
+      span(id = ns("upload_import_check"),
+           icon("check", class = "btn-done-img"))
     ),
     shinyjs::hidden(
       div(id = ns("upload_err"),
@@ -200,8 +226,11 @@ dataimportServerHelper <- function(input, output, session, id, fileExt) {
   observeEvent(input$upload_import_btn, {
     values$error <- NULL
     shinyjs::disable("upload_import_btn")
+    shinyjs::show("upload_import_loader")
+    shinyjs::hide("upload_import_check")
     on.exit({
       shinyjs::enable("upload_import_btn")
+      shinyjs::hide("upload_import_loader")
     })
     
     tryCatch({
@@ -226,8 +255,13 @@ dataimportServerHelper <- function(input, output, session, id, fileExt) {
         }
         read_params[[param]] <<- value
       })
-  
+
       values$data <- do.call(fxn, read_params)
+      
+      shinyjs::show("upload_import_check")
+      shinyjs::delay(2000,
+                     shinyjs::hide("upload_import_check", anim = TRUE,
+                                   animType = "fade", time = 0.5))
     }, error = function(err) {
       values$error <- err$message
     })
