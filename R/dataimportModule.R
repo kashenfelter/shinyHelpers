@@ -42,8 +42,9 @@ check_file_formats <- function(fileExt) {
 }
 
 dataimportCSS <- "
-.dataimport-module h3 {
+.dataimport-module .upload-options-section h3 {
   font-weight: bold;
+  margin-top: 0;
 }
 .dataimport-module .upload-err {
   margin-top: 10px;
@@ -57,6 +58,10 @@ dataimportCSS <- "
 }
 .dataimport-module .btn-done-img {
   color: green;
+}
+.dataimport-module .show_hide_opts {
+  display: inline-block;
+  margin-bottom: 10px;
 }
 "
 
@@ -94,7 +99,7 @@ dataimportUI <- function(id = "dataimport",
     shinyjs::useShinyjs(),
     shinyjs::inlineCSS(dataimportCSS),
     class = "dataimport-module",
-    h3("Import a dataset"),
+    h3(tags$strong("Import a dataset")),
     div(
       style = if(is.null(sample_datasets)) "display:none;",
       selectInput(ns("upload_vs_sample"), NULL, choices = 
@@ -124,8 +129,10 @@ dataimportUI <- function(id = "dataimport",
       ),
   
       conditionalPanel(
-        paste0("input['", ns("upload_type"),"'] == 'csv'"),
-        div(
+        paste0("input['", ns("upload_type"), "'] == 'csv'"),
+        actionLink(ns("show_hide_opts_csv"), "", class = "show_hide_opts"),
+        div(id = ns("upload_options_csv"),
+            class = "upload-options-section",
             div(h3("Import CSV Options")),
             checkboxInput(ns("upload_options_csv_header"),
                           "First row is column names", TRUE),
@@ -143,7 +150,9 @@ dataimportUI <- function(id = "dataimport",
       
       conditionalPanel(
         paste0("input['", ns("upload_type"),"'] == 'txt'"),
-        div(
+        actionLink(ns("show_hide_opts_txt"), ""),
+        div(id = ns("upload_options_txt"),
+            class = "upload-options-section",
             div(h3("Import Text Options")),
             checkboxInput(ns("upload_options_txt_header"),
                           "First row is column names", TRUE),
@@ -161,7 +170,9 @@ dataimportUI <- function(id = "dataimport",
       
       conditionalPanel(
         paste0("input['", ns("upload_type"),"'] == 'xlsx'"),
-        div(
+        actionLink(ns("show_hide_opts_xlsx"), ""),
+        div(id = ns("upload_options_xlsx"),
+            class = "upload-options-section",
             div(h3("Import Excel Options")),
             checkboxInput(ns("upload_options_xlsx_col_names"),
                           "First row is column names", TRUE),
@@ -172,12 +183,14 @@ dataimportUI <- function(id = "dataimport",
       
       conditionalPanel(
         paste0("input['", ns("upload_type"),"'] == 'ods'"),
-        div(
-          div(h3("Import ODS Options")),
-          checkboxInput(ns("upload_options_ods_col_names"),
-                        "First row is column names", TRUE),
-          numericInput(ns("upload_options_ods_sheet"), "Sheet to read",
-                       min = 1, value = 1)
+        actionLink(ns("show_hide_opts_ods"), ""),
+        div(id = ns("upload_options_ods"),
+            class = "upload-options-section",
+            div(h3("Import ODS Options")),
+            checkboxInput(ns("upload_options_ods_col_names"),
+                          "First row is column names", TRUE),
+            numericInput(ns("upload_options_ods_sheet"), "Sheet to read",
+                         min = 1, value = 1)
         )
       ),
       shinyjs::hidden(
@@ -240,6 +253,21 @@ dataimportServerHelper <- function(input, output, session, id, fileExt,
   
   output$upload_err_msg <- renderText({
     values$error
+  })
+  
+  # Show/hide options
+  lapply(SUPPORTED_FILES, function(x) {
+    btn_id <- paste0("show_hide_opts_", x)
+    section_id <- paste0("upload_options_", x)
+    observe({
+      if (input[[btn_id]] %% 2 == 0) {
+        shinyjs::html(btn_id, "Show options")
+        shinyjs::hide(section_id)
+      } else {
+        shinyjs::html(btn_id, "Hide options")
+        shinyjs::show(section_id)
+      }
+    })
   })
 
   # get the local path of the uploaded file (after fixing its filename)
