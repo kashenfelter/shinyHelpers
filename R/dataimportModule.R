@@ -1,6 +1,6 @@
-# TODO: data module - have option to use default params for the file types so that you don't let the user choose parameters
-# add parameter for stringsAsFactors
-# change naming to underscore
+# TODO:
+# - data module - have option to use default params for the file types so that you don't let the user choose parameters
+# - change naming to underscore
 
 #' @export
 doit <- function() {
@@ -129,6 +129,8 @@ dataimportUI <- function(id = "dataimport",
             div(h3("Import CSV Options")),
             checkboxInput(ns("upload_options_csv_header"),
                           "First row is column names", TRUE),
+            checkboxInput(ns("upload_options_csv_stringsAsFactors"),
+                          "Strings as factors", FALSE),
             selectInput(ns("upload_options_csv_sep"),
                         "Delimeter",
                         c("Comma" = ",", "Tab" = "\t", "Whitespace" = " ")),
@@ -145,6 +147,8 @@ dataimportUI <- function(id = "dataimport",
             div(h3("Import Text Options")),
             checkboxInput(ns("upload_options_txt_header"),
                           "First row is column names", TRUE),
+            checkboxInput(ns("upload_options_txt_stringsAsFactors"),
+                          "Strings as factors", FALSE),
             selectInput(ns("upload_options_txt_sep"),
                         "Delimeter",
                         c("Comma" = ",", "Tab" = "\t", "Whitespace" = " ")),
@@ -311,7 +315,7 @@ dataimportServerHelper <- function(input, output, session, id, fileExt,
       })
 
       values$data <- do.call(fxn, read_params)
-      
+
       shinyjs::show("upload_import_check")
       shinyjs::delay(2000,
                      shinyjs::hide("upload_import_check", anim = TRUE,

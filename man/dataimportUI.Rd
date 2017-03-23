@@ -4,8 +4,8 @@
 \alias{dataimportUI}
 \title{Data import module UI}
 \usage{
-dataimportUI(id = "dataimport", fileExt = SUPPORTED_FILES,
-  label = "Choose a file")
+dataimportUI(id = "dataimport", fileExt = c("csv", "txt", "xlsx", "ods"),
+  sampleDataPackage = NULL, sampleDatasets = NULL)
 }
 \description{
 Data import module UI
