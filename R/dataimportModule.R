@@ -1,6 +1,5 @@
 # TODO:
 # - change naming to underscore
-# - think of a way to make the user not have to duplicate the UI and server code
 
 #' @export
 dataimportModule <- function(id = "dataimport",
@@ -14,7 +13,7 @@ dataimportModule <- function(id = "dataimport",
 }
 
 #' @export
-doit <- function() {
+dataimportdemo <- function() {
   fileExt = c("csv", "txt", "xlsx", "ods")
   
   expl_data <- list("Ebola" = outbreaks::ebola_sim$linelist, 

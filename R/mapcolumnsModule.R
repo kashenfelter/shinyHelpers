@@ -1,10 +1,20 @@
-# TODO: see if there's a way to return a reactive list instead of reactive items
+#' @export
+mapcolumnsModule <- function(id = "mapcolumns", data, names, multiple = TRUE,
+                             labels = NULL) {
+  list(
+    ui = function() mapcolumnsUI(id = id, data = data, names = names,
+                                 multiple = multiple, labels = labels),
+    server = function() mapcolumnsServer(id = id, data = data, names = names)
+  )
+}
 
 #' @export
-dome <- function() {
+mapcolumnsdemo <- function() {
   ui <- fluidPage(
     selectInput("dataset", "Select dataset", c("iris", "mtcars")),
-    uiOutput("mapcolumns")
+    uiOutput("mapcolumns"),
+    "Dates:", textOutput("dates_text", inline = TRUE), br(),
+    "Name:", textOutput("name_text", inline = TRUE)
   )
   
   server <- function(input, output, session) {
@@ -16,25 +26,26 @@ dome <- function() {
       }
     })
     
+    mapcolumns <- reactive({
+      data <- mydata()
+      mapcolumnsModule("someid", data = data,
+                       names = c("dates", "names"),
+                       multiple = c(TRUE, FALSE),
+                       labels = c("Please provide the dates of onset",
+                                  "Which column corresponds to the name?"))
+    })
+    
     output$mapcolumns <- renderUI({
-      mapcolumnsUI(data = mydata(),
-                   names = c("dates", "name"),
-                   multiple = c(T, F),
-                   labels = c("Please provide the dates of onset",
-                              "Which column corresponds to the name?")
-      )
+      mapcolumns()$ui()
     })
     
-    mynames <- mapcolumnsServer(
-      data = mydata(),
-      names = c("dates", "name"),
-      multiple = c(T, F))
+    mynames <- reactive(mapcolumns()$server())
     
-    observe({
-      cat(str(mynames$dates()))
+    output$dates_text <- renderText({
+      paste(mynames()$dates(), collapse = ", ")
     })
-    observe({
-      cat(str(mynames$name()))
+    output$name_text <- renderText({
+      mynames()$name()
     })
       
   }
@@ -81,8 +92,7 @@ mapcolumnsUI <- function(id = "mapcolumns", data, names, multiple = TRUE,
 
 #' @export
 #' @import shiny
-mapcolumnsServer <- function(id = "mapcolumns",
-                             data, names, multiple = TRUE) {
+mapcolumnsServer <- function(id = "mapcolumns", data, names) {
   callModule(mapcolumnsServerHelper, id, data = data, names = names)
 }
 
